@@ -148,7 +148,7 @@ void keyboard() {
 // Networking
 SOCKET server_socket;
 struct addrinfo* ptr = NULL;
-#define PORT "5000"
+#define PORT "8888"
 #define BUFLEN 512
 #define UPDATE_INTERVAL 0.100 //seconds
 

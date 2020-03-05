@@ -19,18 +19,31 @@
 
 GLFWwindow* window;
 
-unsigned char* image;
+unsigned char* hockeysmacker;
+unsigned char* puck;
 int width, height;
 
 void loadImage() {
 	int channels;
 	stbi_set_flip_vertically_on_load(true);
-	image = stbi_load("box.jpg",
+	hockeysmacker = stbi_load("box.jpg",
 		&width,
 		&height,
 		&channels,
 		0);
-	if (image) {
+	puck = stbi_load("box.jpg",
+		&width,
+		&height,
+		&channels,
+		0);
+	if (hockeysmacker) {
+		std::cout << "Image LOADED" << width << " " << height << std::endl;
+	}
+	else {
+		std::cout << "Failed to load image!" << std::endl;
+	}
+
+	if (puck) {
 		std::cout << "Image LOADED" << width << " " << height << std::endl;
 	}
 	else {
@@ -149,7 +162,7 @@ void keyboard() {
 SOCKET client_socket;
 struct addrinfo* ptr = NULL;
 #define SERVER "127.0.0.1"
-#define PORT "5000"
+#define PORT "8888"
 #define BUFLEN 512
 #define UPDATE_INTERVAL 0.100 //seconds
 
@@ -374,13 +387,13 @@ int main() {
 	glBindTexture(GL_TEXTURE_2D, textureHandle);
 	
 	// Give the image to OpenGL
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, hockeysmacker);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
 	// Release the space used for your image once you're done
-	stbi_image_free(image);
+	stbi_image_free(hockeysmacker);
 
 	// Load your shaders
 	if (!loadShaders())
@@ -401,13 +414,19 @@ int main() {
 	);
 
 	// Model matrix : an identity matrix (model will be at the origin)
-	glm::mat4 Model = glm::mat4(1.0f);
+	glm::mat4 client_smacker = glm::mat4(1.0f);
+	glm::mat4 server_smacker = glm::mat4(1.0f);
+	glm::mat4 puck = glm::mat4(1.0f);
 	// create individual matrices glm::mat4 T R and S, then multiply them
-	Model = glm::translate(Model, glm::vec3(0.0f, 0.0f, 0.0f));
+	client_smacker = glm::translate(client_smacker, glm::vec3(0.0f, 0.0f, 0.0f));
+	server_smacker = glm::translate(server_smacker, glm::vec3(0.0f, 0.0f, 0.0f));
+	puck = glm::translate(puck, glm::vec3(0.0f, 0.0f, 0.0f));
 
 
 	// Our ModelViewProjection : multiplication of our 3 matrices
-	glm::mat4 mvp = Projection * View * Model; // Remember, matrix multiplication is the other way around
+	glm::mat4 mvpCli = Projection * View * client_smacker; // Remember, matrix multiplication is the other way around
+	glm::mat4 mvpSer = Projection * View * server_smacker; // Remember, matrix multiplication is the other way around
+	glm::mat4 mvpPuck = Projection * View * puck; // Remember, matrix multiplication is the other way around
 
 	// Get a handle for our "MVP" uniform
 	// Only during initialisation
@@ -448,13 +467,20 @@ int main() {
 			std::string msg = std::to_string(tx) + "@" + std::to_string(ty);
 
 			strcpy(message, (char*)msg.c_str());
-
+			//sends messages
 			if (sendto(client_socket, message, BUFLEN, 0, ptr->ai_addr, ptr->ai_addrlen) == SOCKET_ERROR)
 			{
 				std::cout << "Sendto() failed...\n" << std::endl;
 			}
 			std::cout << "sent: " << message << std::endl;
 			memset(message, '/0', BUFLEN);
+
+			char recvMessage[BUFLEN];
+			//receives messages
+			if (recv(client_socket, message, BUFLEN, NULL) == SOCKET_ERROR)
+			{
+
+			}
 
 			time = UPDATE_INTERVAL; // reset the timer
 		}
@@ -464,18 +490,18 @@ int main() {
 
 		glUseProgram(shader_program);
 
-		Model = glm::mat4(1.0f);
+		client_smacker = glm::mat4(1.0f);
 
 		keyboard();
 
-		Model = glm::translate(Model, glm::vec3(tx, ty, -2.0f));
-		mvp = Projection * View * Model;
+		client_smacker = glm::translate(client_smacker, glm::vec3(tx, ty, -2.0f));
+		mvpCli = Projection * View * client_smacker;
 		//tx = ty = 0;
 
 		glBindVertexArray(vao);
 
 		glUniformMatrix4fv(MatrixID, 1, 
-			GL_FALSE, &mvp[0][0]);
+			GL_FALSE, &mvpCli[0][0]);
 
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
