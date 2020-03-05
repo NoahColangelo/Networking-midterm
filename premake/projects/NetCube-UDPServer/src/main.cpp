@@ -512,17 +512,17 @@ int main() {
 
 		glUseProgram(shader_program);
 
-		Model = glm::mat4(1.0f);
+		client_smacker = glm::mat4(1.0f);
 
 		keyboard();
 
-		Model = glm::translate(Model, glm::vec3(tx, ty, -2.0f));
-		mvp = Projection * View * Model;
+		client_smacker = glm::translate(client_smacker, glm::vec3(tx, ty, -2.0f));
+		mvpCli = Projection * View * client_smacker;
 
 		glBindVertexArray(vao);
 
 		glUniformMatrix4fv(MatrixID, 1, 
-			GL_FALSE, &mvp[0][0]);
+			GL_FALSE, &mvpCli[0][0]);
 
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
