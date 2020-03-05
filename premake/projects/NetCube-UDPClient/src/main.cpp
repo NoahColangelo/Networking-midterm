@@ -1,3 +1,5 @@
+//Noah Colangelo 100659538
+//Giulia Santin 100657351
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -509,7 +511,7 @@ int main() {
 				temp = temp.substr(pos + 1);
 				serverPosY = std::stof(temp);
 
-				std::cout << serverPosX << " " << serverPosY << std::endl;
+				std::cout << "received " << serverPosX << " " << serverPosY << std::endl;
 			}
 
 			time = UPDATE_INTERVAL; // reset the timer
