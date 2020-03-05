@@ -31,12 +31,12 @@ int width, height;
 void loadImage() {
 	int channels;
 	stbi_set_flip_vertically_on_load(true);
-	hockeysmacker = stbi_load("box.jpg",
+	hockeysmacker = stbi_load("Smacker.jpg",
 		&width,
 		&height,
 		&channels,
 		0);
-	puck = stbi_load("box.jpg",
+	puck = stbi_load("Puck.jpg",
 		&width,
 		&height,
 		&channels,
