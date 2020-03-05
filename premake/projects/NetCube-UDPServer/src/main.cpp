@@ -1,3 +1,5 @@
+//Servere
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -22,15 +24,30 @@ GLFWwindow* window;
 unsigned char* image;
 int width, height;
 
+unsigned char* hockeysmacker;
+unsigned char* puck;
+int width, height;
+
 void loadImage() {
 	int channels;
 	stbi_set_flip_vertically_on_load(true);
-	image = stbi_load("box.jpg",
+	hockeysmacker = stbi_load("box.jpg",
 		&width,
 		&height,
 		&channels,
 		0);
-	if (image) {
+	puck = stbi_load("box.jpg",
+		&width,
+		&height,
+		&channels,
+		0);
+	if (hockeysmacker) {
+		std::cout << "Image LOADED" << width << " " << height << std::endl;
+	}
+	else {
+		std::cout << "Failed to load image!" << std::endl;
+	}
+	if (puck) {
 		std::cout << "Image LOADED" << width << " " << height << std::endl;
 	}
 	else {
@@ -390,13 +407,13 @@ int main() {
 	glBindTexture(GL_TEXTURE_2D, textureHandle);
 	
 	// Give the image to OpenGL
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, hockeysmacker);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
 	// Release the space used for your image once you're done
-	stbi_image_free(image);
+	stbi_image_free(hockeysmacker);
 
 	// Load your shaders
 	if (!loadShaders())
@@ -417,13 +434,19 @@ int main() {
 	);
 
 	// Model matrix : an identity matrix (model will be at the origin)
-	glm::mat4 Model = glm::mat4(1.0f);
+	glm::mat4 client_smacker = glm::mat4(1.0f);
+	glm::mat4 server_smacker = glm::mat4(1.0f);
+	glm::mat4 puck = glm::mat4(1.0f);
 	// create individual matrices glm::mat4 T R and S, then multiply them
-	Model = glm::translate(Model, glm::vec3(0.0f, 0.0f, 0.0f));
+	client_smacker = glm::translate(client_smacker, glm::vec3(0.0f, 0.0f, 0.0f));
+	server_smacker = glm::translate(server_smacker, glm::vec3(0.0f, 0.0f, 0.0f));
+	puck = glm::translate(puck, glm::vec3(0.0f, 0.0f, 0.0f));
 
 
 	// Our ModelViewProjection : multiplication of our 3 matrices
-	glm::mat4 mvp = Projection * View * Model; // Remember, matrix multiplication is the other way around
+	glm::mat4 mvpCli = Projection * View * client_smacker; // Remember, matrix multiplication is the other way around
+	glm::mat4 mvpSer = Projection * View * server_smacker; // Remember, matrix multiplication is the other way around
+	glm::mat4 mvpPuck = Projection * View * puck; // Remember, matrix multiplication is the other way around
 
 	// Get a handle for our "MVP" uniform
 	// Only during initialisation
