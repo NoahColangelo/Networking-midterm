@@ -26,12 +26,12 @@ int width, height;
 void loadImage() {
 	int channels;
 	stbi_set_flip_vertically_on_load(true);
-	hockeysmacker = stbi_load("box.jpg",
+	hockeysmacker = stbi_load("Smacker.png",
 		&width,
 		&height,
 		&channels,
 		0);
-	puck = stbi_load("box.jpg",
+	puck = stbi_load("Puck.png",
 		&width,
 		&height,
 		&channels,
@@ -121,22 +121,28 @@ bool loadShaders() {
 }
 
 //INPUT handling
-float tx = 0.0f;
-float ty = 0.0f;
+float clientPosX = 0.0f;
+float clientPosY = 0.0f;
+
+float serverPosX = 0.0f;
+float serverPosY = 0.0f;
+
+float puckX = 0.0f;
+float puckY = 0.0f;
 GLuint filter_mode = GL_LINEAR;
 
 void keyboard() {
 	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-		ty += 0.001;
+		clientPosY += 0.001;
 	}
 	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-		ty -= 0.001;
+		clientPosY -= 0.001;
 	}
 	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-		tx += 0.001;
+		clientPosX += 0.001;
 	}
 	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-		tx -= 0.001;
+		clientPosX -= 0.001;
 	}
 	
 
@@ -464,7 +470,7 @@ int main() {
 			// Code to send position updates go HERE...
 			char message[BUFLEN];
 
-			std::string msg = std::to_string(tx) + "@" + std::to_string(ty);
+			std::string msg = std::to_string(clientPosX) + "@" + std::to_string(clientPosY);
 
 			strcpy(message, (char*)msg.c_str());
 			//sends messages
@@ -475,11 +481,35 @@ int main() {
 			std::cout << "sent: " << message << std::endl;
 			memset(message, '/0', BUFLEN);
 
-			char recvMessage[BUFLEN];
-			//receives messages
-			if (recv(client_socket, message, BUFLEN, NULL) == SOCKET_ERROR)
-			{
 
+		//-------------------------------receiving from server
+			char buf[BUFLEN];
+			struct sockaddr_in fromAdder;
+			int fromLen;
+			fromLen = sizeof(fromAdder);
+
+			memset(buf, 0, BUFLEN);
+
+			int bytes_received = -1;
+			int sError = -1;
+
+			bytes_received = recvfrom(client_socket, buf, BUFLEN, 0, (struct sockaddr*) & fromAdder, &fromLen);
+
+			sError = WSAGetLastError();
+
+			if (sError != WSAEWOULDBLOCK && bytes_received > 0)
+			{
+				//std::cout << "Received: " << buf << std::endl;
+
+				std::string temp = buf;
+				std::size_t pos = temp.find('@');
+				temp = temp.substr(0, pos - 1);
+				serverPosX = std::stof(temp);
+				temp = buf;
+				temp = temp.substr(pos + 1);
+				serverPosY = std::stof(temp);
+
+				std::cout << serverPosX << " " << serverPosY << std::endl;
 			}
 
 			time = UPDATE_INTERVAL; // reset the timer
@@ -491,11 +521,15 @@ int main() {
 		glUseProgram(shader_program);
 
 		client_smacker = glm::mat4(1.0f);
+		server_smacker = glm::mat4(1.0f);
 
 		keyboard();
 
-		client_smacker = glm::translate(client_smacker, glm::vec3(tx, ty, -2.0f));
+		client_smacker = glm::translate(client_smacker, glm::vec3(clientPosX, clientPosY, -2.0f));
 		mvpCli = Projection * View * client_smacker;
+
+		server_smacker = glm::translate(server_smacker, glm::vec3(clientPosX, clientPosY, -2.0f));
+		mvpCli = Projection * View * server_smacker;
 		//tx = ty = 0;
 
 		glBindVertexArray(vao);
