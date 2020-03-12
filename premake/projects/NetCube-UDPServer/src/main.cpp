@@ -27,6 +27,8 @@ int width, height;
 unsigned char* hockeysmacker;
 unsigned char* puck;
 
+float UPDATE_INTERVAL = 0.100; //seconds
+
 void loadImage() {
 	int channels;
 	stbi_set_flip_vertically_on_load(true);
@@ -148,6 +150,23 @@ void keyboard() {
 		serverPosX -= 0.001;
 	}
 	
+	//Buttons to increase and decrease interval lag ( lowest it goes is 0.100)
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		UPDATE_INTERVAL += 0.01;
+	}
+	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
+		UPDATE_INTERVAL -= 0.01;
+	}
+
+	//Buttons to increase and decrease interval lag ( lowest it goes is 0.100 but due to how floats work it goes down to 0.9)
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		UPDATE_INTERVAL += 0.01;
+		std::cout << UPDATE_INTERVAL << std::endl;
+	}
+	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS && UPDATE_INTERVAL > 0.1f) {
+		UPDATE_INTERVAL -= 0.01;
+		std::cout << UPDATE_INTERVAL << std::endl;
+	}
 
 	if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
 		if (filter_mode == GL_LINEAR) {
@@ -172,7 +191,6 @@ SOCKET server_socket;
 struct addrinfo* ptr = NULL;
 #define PORT "8888"
 #define BUFLEN 512
-#define UPDATE_INTERVAL 0.100 //seconds
 
 bool initNetwork() {
 	//Initialize winsock
@@ -485,13 +503,11 @@ int main() {
 		float delta = now - previous;
 		previous = now;
 
+
 		// When timer goes off, send an update
 		time -= delta;
 		if (time <= 0.f)
 		{
-			/*
-			CODE TO RECEIVE UPDATES FROM CLIENT GOES HERE...
-			*/
 			char buf[BUFLEN];
 			struct sockaddr_in fromAdder;
 			int fromLen;
@@ -502,11 +518,11 @@ int main() {
 			int bytes_received = -1;
 			int sError = -1;
 
-			bytes_received = recvfrom(server_socket, buf, BUFLEN, 0, (struct sockaddr*) & fromAdder, &fromLen);
+			bytes_received = recvfrom(server_socket, buf, BUFLEN, 0, (struct sockaddr*) & fromAdder, &fromLen);//receives from client
 
 			sError = WSAGetLastError();
 
-			if (sError != WSAEWOULDBLOCK && bytes_received > 0)
+			if (sError != WSAEWOULDBLOCK && bytes_received > 0)// checks if valid then processes movement from client
 			{
 				//std::cout << "Received: " << buf << std::endl;
 
@@ -518,50 +534,76 @@ int main() {
 				temp = temp.substr(pos + 1);
 				clientPosY = std::stof(temp);
 
-				std::cout << "received "<< clientPosX << " " << clientPosY << std::endl;
+				std::cout << "client pos: "<< clientPosX << " " << clientPosY << std::endl;
 			}
-			////////////////////
-			// Code to send position updates go HERE...
+			
+
+			// Sends servers position to the client
 			char message[BUFLEN];
 
-			std::string msg = std::to_string(clientPosX) + "@" + std::to_string(clientPosY);
+			std::string msg = std::to_string(serverPosX) + "@" + std::to_string(serverPosY);
 
 			strcpy(message, (char*)msg.c_str());
 			//sends messages
 			if (sendto(server_socket, message, BUFLEN, 0, (struct sockaddr*) &	fromAdder, fromLen) == SOCKET_ERROR)
 			{
-				std::cout << "Sendto() failed...\n" << std::endl;
+				std::cout << "my pos send failed...\n" << std::endl;
 			}
-			std::cout << "sent: " << message << std::endl;
+			else
+			std::cout << "my pos: " << message << std::endl;
 			memset(message, '/0', BUFLEN);
 
 			////////////////////
 
-			glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			//Sends puck position to client
+			char puckMessage[BUFLEN];
 
-			glUseProgram(shader_program);
+			std::string pMsg = std::to_string(puckX) + "@" + std::to_string(puckY);
 
-			server_smacker = glm::mat4(1.0f);
-			client_smacker = glm::mat4(1.0f);
+			strcpy(puckMessage, (char*)pMsg.c_str());
+			//sends messages
+			if (sendto(server_socket, puckMessage, BUFLEN, 0, (struct sockaddr*) & fromAdder, fromLen) == SOCKET_ERROR)
+			{
+				std::cout << "puck pos send failed...\n" << std::endl;
+			}
+			else
+			std::cout << "puck pos: " << puckMessage << std::endl;
+			memset(puckMessage, '/0', BUFLEN);
+			//-------------------------------
 
-			keyboard();
-
-			server_smacker = glm::translate(server_smacker, glm::vec3(serverPosX, serverPosY, -2.0f));
-			mvpSer = Projection * View * server_smacker;
-
-			client_smacker = glm::translate(client_smacker, glm::vec3(clientPosX, clientPosY, -2.0f));
-			mvpCli = Projection * View * client_smacker;
-
-			glBindVertexArray(vao);
-
-			glUniformMatrix4fv(MatrixID, 1,
-				GL_FALSE, &mvpSer[0][0]);
-
-			glDrawArrays(GL_TRIANGLES, 0, 36);
-
-			glfwSwapBuffers(window);
+			time = UPDATE_INTERVAL; // reset the timer
 		}
+
+		glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		glUseProgram(shader_program);
+
+		// updates positions
+
+		server_smacker = glm::mat4(1.0f);
+		client_smacker = glm::mat4(1.0f);
+		puck = glm::mat4(1.0f);
+
+		keyboard();
+
+		server_smacker = glm::translate(server_smacker, glm::vec3(serverPosX, serverPosY, -2.0f));
+		mvpSer = Projection * View * server_smacker;
+
+		client_smacker = glm::translate(client_smacker, glm::vec3(clientPosX, clientPosY, -2.0f));
+		mvpCli = Projection * View * client_smacker;
+
+		puck = glm::translate(puck, glm::vec3(puckX, puckY, -2.0f));
+		mvpPuck = Projection * View * puck;
+
+		glBindVertexArray(vao);
+
+		glUniformMatrix4fv(MatrixID, 1,
+			GL_FALSE, &mvpSer[0][0]);
+
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glfwSwapBuffers(window);
 	}
 		return 0;
 }

@@ -24,6 +24,7 @@ GLFWwindow* window;
 unsigned char* hockeysmacker;
 unsigned char* puck;
 int width, height;
+float UPDATE_INTERVAL = 0.1; //seconds
 
 void loadImage() {
 	int channels;
@@ -146,7 +147,16 @@ void keyboard() {
 	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
 		clientPosX -= 0.001;
 	}
-	
+
+	//Buttons to increase and decrease interval lag ( lowest it goes is 0.100 but due to how floats work it goes down to 0.9)
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		UPDATE_INTERVAL += 0.01;
+		std::cout<< UPDATE_INTERVAL << std::endl;
+	}
+	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS && UPDATE_INTERVAL > 0.1f) {
+		UPDATE_INTERVAL -= 0.01;
+		std::cout << UPDATE_INTERVAL <<std::endl;
+	}
 
 	if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
 		if (filter_mode == GL_LINEAR) {
@@ -172,7 +182,7 @@ struct addrinfo* ptr = NULL;
 #define SERVER "127.0.0.1"
 #define PORT "8888"
 #define BUFLEN 512
-#define UPDATE_INTERVAL 0.100 //seconds
+
 
 bool initNetwork() {
 	//Initialize winsock
@@ -188,6 +198,11 @@ bool initNetwork() {
 
 	//Create a client socket
 
+	//CLIENT TYPES IN IP HERE-------------------------------------
+	std::string IP;
+	std::cout << "Please type the IP of the server" << std::endl;
+	std::getline(std::cin, IP);
+
 	struct addrinfo hints;
 
 	memset(&hints, 0, sizeof(hints));
@@ -195,7 +210,7 @@ bool initNetwork() {
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_protocol = IPPROTO_UDP;
 
-	if (getaddrinfo(SERVER, PORT, &hints, &ptr) != 0) {
+	if (getaddrinfo(IP.c_str(), PORT, &hints, &ptr) != 0) {
 		printf("Getaddrinfo failed!! %d\n", WSAGetLastError());
 		WSACleanup();
 		return 0;
@@ -480,7 +495,8 @@ int main() {
 			{
 				std::cout << "Sendto() failed...\n" << std::endl;
 			}
-			std::cout << "sent: " << message << std::endl;
+			else
+			std::cout << "my pos: " << message << std::endl;
 			memset(message, '/0', BUFLEN);
 
 
@@ -511,8 +527,29 @@ int main() {
 				temp = temp.substr(pos + 1);
 				serverPosY = std::stof(temp);
 
-				std::cout << "received " << serverPosX << " " << serverPosY << std::endl;
+				std::cout << "server pos: " << serverPosX << " " << serverPosY << std::endl;
 			}
+
+			//receives puck position form server
+			bytes_received = recvfrom(client_socket, buf, BUFLEN, 0, (struct sockaddr*) & fromAdder, &fromLen);
+
+			sError = WSAGetLastError();
+
+			if (sError != WSAEWOULDBLOCK && bytes_received > 0)
+			{
+				//std::cout << "Received: " << buf << std::endl;
+
+				std::string temp = buf;
+				std::size_t pos = temp.find('@');
+				temp = temp.substr(0, pos - 1);
+				puckX = std::stof(temp);
+				temp = buf;
+				temp = temp.substr(pos + 1);
+				puckY = std::stof(temp);
+
+				std::cout << "puckPos: " << puckX << " " << puckY << std::endl;
+			}
+
 
 			time = UPDATE_INTERVAL; // reset the timer
 		}
@@ -524,6 +561,7 @@ int main() {
 
 		client_smacker = glm::mat4(1.0f);
 		server_smacker = glm::mat4(1.0f);
+		puck = glm::mat4(1.0f);
 
 		keyboard();
 
@@ -532,7 +570,9 @@ int main() {
 
 		server_smacker = glm::translate(server_smacker, glm::vec3(clientPosX, clientPosY, -2.0f));
 		mvpCli = Projection * View * server_smacker;
-		//tx = ty = 0;
+		
+		puck = glm::translate(puck, glm::vec3(puckX, puckY, -2.0f));
+		mvpPuck = Projection * View * puck;
 
 		glBindVertexArray(vao);
 
