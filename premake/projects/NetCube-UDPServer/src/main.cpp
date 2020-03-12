@@ -23,6 +23,7 @@ GLFWwindow* window;
 
 unsigned char* image;
 int width, height;
+int widthPuck, heightPuck;
 
 unsigned char* hockeysmacker;
 unsigned char* puck;
@@ -30,17 +31,17 @@ unsigned char* puck;
 float UPDATE_INTERVAL = 0.100; //seconds
 
 void loadImage() {
-	int channels;
+	int channels, channelsPuck;
 	stbi_set_flip_vertically_on_load(true);
-	hockeysmacker = stbi_load("Smacker.png",
+	hockeysmacker = stbi_load("Smacker.jpg",
 		&width,
 		&height,
 		&channels,
 		0);
-	puck = stbi_load("Puck.png",
-		&width,
-		&height,
-		&channels,
+	puck = stbi_load("Puck.jpg",
+		&widthPuck,
+		&heightPuck,
+		&channelsPuck,
 		0);
 	if (hockeysmacker) {
 		std::cout << "Image LOADED" << width << " " << height << std::endl;
@@ -49,7 +50,7 @@ void loadImage() {
 		std::cout << "Failed to load image!" << std::endl;
 	}
 	if (puck) {
-		std::cout << "Image LOADED" << width << " " << height << std::endl;
+		std::cout << "Image LOADED" << widthPuck << " " << heightPuck << std::endl;
 	}
 	else {
 		std::cout << "Failed to load image!" << std::endl;
@@ -422,7 +423,7 @@ int main() {
 
 	loadImage();
 	
-	GLuint textureHandle;
+	GLuint textureHandle, textureHandlePuck;
 	
 	glGenTextures(1, &textureHandle);
 	
@@ -436,7 +437,27 @@ int main() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
 	// Release the space used for your image once you're done
+
+	glBindTexture(GL_TEXTURE_2D, GL_NONE);
 	stbi_image_free(hockeysmacker);
+
+
+	//------------------------------------FOr the puck
+	glGenTextures(1, &textureHandlePuck);
+
+	// "Bind" the newly created texture : all future texture functions will modify this texture
+	glBindTexture(GL_TEXTURE_2D, textureHandlePuck);
+
+	// Give the image to OpenGL
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, widthPuck, heightPuck, 0, GL_RGB, GL_UNSIGNED_BYTE, puck);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	// Release the space used for your image once you're done
+	glBindTexture(GL_TEXTURE_2D, GL_NONE);
+	stbi_image_free(puck);
+	//-----------------------------------------
 
 	// Load your shaders
 	if (!loadShaders())
@@ -600,6 +621,22 @@ int main() {
 
 		glUniformMatrix4fv(MatrixID, 1,
 			GL_FALSE, &mvpSer[0][0]);
+
+		glBindTexture(GL_TEXTURE_2D, textureHandle);
+
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glUniformMatrix4fv(MatrixID, 1,
+			GL_FALSE, &mvpCli[0][0]);
+
+		glBindTexture(GL_TEXTURE_2D, textureHandle);
+
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glUniformMatrix4fv(MatrixID, 1,
+			GL_FALSE, &mvpPuck[0][0]);
+
+		glBindTexture(GL_TEXTURE_2D, textureHandlePuck);
 
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 

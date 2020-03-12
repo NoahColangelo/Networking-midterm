@@ -24,20 +24,21 @@ GLFWwindow* window;
 unsigned char* hockeysmacker;
 unsigned char* puck;
 int width, height;
+int widthPuck, heightPuck;
 float UPDATE_INTERVAL = 0.1; //seconds
 
 void loadImage() {
-	int channels;
+	int channels, channelsPuck;
 	stbi_set_flip_vertically_on_load(true);
-	hockeysmacker = stbi_load("Smacker.png",
+	hockeysmacker = stbi_load("Smacker.jpg",
 		&width,
 		&height,
 		&channels,
 		0);
-	puck = stbi_load("Puck.png",
-		&width,
-		&height,
-		&channels,
+	puck = stbi_load("Puck.jpg",
+		&widthPuck,
+		&heightPuck,
+		&channelsPuck,
 		0);
 	if (hockeysmacker) {
 		std::cout << "Image LOADED" << width << " " << height << std::endl;
@@ -47,7 +48,7 @@ void loadImage() {
 	}
 
 	if (puck) {
-		std::cout << "Image LOADED" << width << " " << height << std::endl;
+		std::cout << "Image LOADED" << widthPuck << " " << heightPuck << std::endl;
 	}
 	else {
 		std::cout << "Failed to load image!" << std::endl;
@@ -402,7 +403,7 @@ int main() {
 
 	loadImage();
 	
-	GLuint textureHandle;
+	GLuint textureHandle, textureHandlePuck;
 	
 	glGenTextures(1, &textureHandle);
 	
@@ -416,7 +417,25 @@ int main() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
 	// Release the space used for your image once you're done
+	glBindTexture(GL_TEXTURE_2D, GL_NONE);
 	stbi_image_free(hockeysmacker);
+
+	//------------------------------------FOr the puck
+	glGenTextures(1, &textureHandlePuck);
+
+	// "Bind" the newly created texture : all future texture functions will modify this texture
+	glBindTexture(GL_TEXTURE_2D, textureHandlePuck);
+
+	// Give the image to OpenGL
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, widthPuck, heightPuck, 0, GL_RGB, GL_UNSIGNED_BYTE, puck);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	// Release the space used for your image once you're done
+	glBindTexture(GL_TEXTURE_2D, GL_NONE);
+	stbi_image_free(puck);
+	//-----------------------------------------
 
 	// Load your shaders
 	if (!loadShaders())
@@ -527,7 +546,7 @@ int main() {
 				temp = temp.substr(pos + 1);
 				serverPosY = std::stof(temp);
 
-				std::cout << "server pos: " << serverPosX << " " << serverPosY << std::endl;
+				//std::cout << "server pos: " << serverPosX << " " << serverPosY << std::endl;
 			}
 
 			//receives puck position form server
@@ -547,7 +566,7 @@ int main() {
 				temp = temp.substr(pos + 1);
 				puckY = std::stof(temp);
 
-				std::cout << "puckPos: " << puckX << " " << puckY << std::endl;
+				//std::cout << "puckPos: " << puckX << " " << puckY << std::endl;
 			}
 
 
@@ -568,16 +587,32 @@ int main() {
 		client_smacker = glm::translate(client_smacker, glm::vec3(clientPosX, clientPosY, -2.0f));
 		mvpCli = Projection * View * client_smacker;
 
-		server_smacker = glm::translate(server_smacker, glm::vec3(clientPosX, clientPosY, -2.0f));
-		mvpCli = Projection * View * server_smacker;
+		server_smacker = glm::translate(server_smacker, glm::vec3(serverPosX, serverPosY, -2.0f));
+		mvpSer = Projection * View * server_smacker;
 		
 		puck = glm::translate(puck, glm::vec3(puckX, puckY, -2.0f));
 		mvpPuck = Projection * View * puck;
 
 		glBindVertexArray(vao);
 
-		glUniformMatrix4fv(MatrixID, 1, 
+		glUniformMatrix4fv(MatrixID, 1,
+			GL_FALSE, &mvpSer[0][0]);
+
+		glBindTexture(GL_TEXTURE_2D, textureHandle);
+
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glUniformMatrix4fv(MatrixID, 1,
 			GL_FALSE, &mvpCli[0][0]);
+
+		glBindTexture(GL_TEXTURE_2D, textureHandle);
+
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glUniformMatrix4fv(MatrixID, 1,
+			GL_FALSE, &mvpPuck[0][0]);
+
+		glBindTexture(GL_TEXTURE_2D, textureHandlePuck);
 
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
