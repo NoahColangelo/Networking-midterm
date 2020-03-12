@@ -128,10 +128,10 @@ bool loadShaders() {
 
 //INPUT handling
 float clientPosX = 0.0f;
-float clientPosY = 0.0f;
+float clientPosY = -1.5f;
 
 float serverPosX = 0.0f;
-float serverPosY = 0.0f;
+float serverPosY = 1.5f;
 
 float puckX = 0.0f;
 float puckY = 0.0f;
@@ -481,11 +481,6 @@ int main() {
 	glm::mat4 client_smacker = glm::mat4(1.0f);
 	glm::mat4 server_smacker = glm::mat4(1.0f);
 	glm::mat4 puck = glm::mat4(1.0f);
-	// create individual matrices glm::mat4 T R and S, then multiply them
-	client_smacker = glm::translate(client_smacker, glm::vec3(0.0f, 0.0f, 0.0f));
-	server_smacker = glm::translate(server_smacker, glm::vec3(0.0f, 0.0f, 0.0f));
-	puck = glm::translate(puck, glm::vec3(0.0f, 0.0f, 0.0f));
-
 
 	// Our ModelViewProjection : multiplication of our 3 matrices
 	glm::mat4 mvpCli = Projection * View * client_smacker; // Remember, matrix multiplication is the other way around
@@ -609,12 +604,15 @@ int main() {
 		keyboard();
 
 		server_smacker = glm::translate(server_smacker, glm::vec3(serverPosX, serverPosY, -2.0f));
+		server_smacker = glm::scale(server_smacker, glm::vec3(0.75f, 0.75f, 0.75f));
 		mvpSer = Projection * View * server_smacker;
 
 		client_smacker = glm::translate(client_smacker, glm::vec3(clientPosX, clientPosY, -2.0f));
+		client_smacker = glm::scale(client_smacker, glm::vec3(0.75f, 0.75f, 0.75f));
 		mvpCli = Projection * View * client_smacker;
 
 		puck = glm::translate(puck, glm::vec3(puckX, puckY, -2.0f));
+		puck = glm::scale(puck, glm::vec3(0.5f, 0.5f, 0.5f));
 		mvpPuck = Projection * View * puck;
 
 		glBindVertexArray(vao);
