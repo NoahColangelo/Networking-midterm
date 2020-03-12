@@ -135,20 +135,23 @@ float serverPosY = 1.5f;
 
 float puckX = 0.0f;
 float puckY = 0.0f;
+
+int colliding = 1;
 GLuint filter_mode = GL_LINEAR;
 
-void keyboard() {
+void keyboard(){
+
 	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-		serverPosY += 0.001;
+		serverPosY += 0.001 * colliding;
 	}
 	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-		serverPosY -= 0.001;
+		serverPosY -= 0.001 * colliding;
 	}
 	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-		serverPosX += 0.001;
+		serverPosX += 0.001 * colliding;
 	}
 	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-		serverPosX -= 0.001;
+		serverPosX -= 0.001 * colliding;
 	}
 	
 	//Buttons to increase and decrease interval lag ( lowest it goes is 0.100)
@@ -184,6 +187,16 @@ void keyboard() {
 
 
 
+}
+
+bool detectHit(glm::vec2 Box1center, glm::vec2 Box1widthHeight, glm::vec2 Box2center, glm::vec2 Box2widthHeight)
+{
+	if (Box1center.x < Box2center.x + Box2widthHeight.x && Box1center.x + Box1widthHeight.x > Box2center.x &&
+		Box1center.y < Box2center.y + Box2widthHeight.y && Box1center.y + Box1widthHeight.y > Box2center.y)
+	{
+		return true;
+	}
+	return false;
 }
 
 
@@ -507,6 +520,9 @@ int main() {
 	float time = 0.0;
 	float previous = glfwGetTime();
 
+	float lastServerPosX;
+	float lastServerPosY;
+
 	struct sockaddr_in fromAddr;
 	int fromlen;
 	fromlen = sizeof(fromAddr);
@@ -601,6 +617,16 @@ int main() {
 		client_smacker = glm::mat4(1.0f);
 		puck = glm::mat4(1.0f);
 
+		if (detectHit(glm::vec2(serverPosX, serverPosY), glm::vec2(0.75f, 0.75f),
+			glm::vec2(clientPosX, clientPosY), glm::vec2(0.75f, 0.75f))) {
+			std::cout << "Hit detected" << std::endl;
+			colliding = -1;
+		}
+		else
+		{
+			colliding = 1;
+		}
+
 		keyboard();
 
 		server_smacker = glm::translate(server_smacker, glm::vec3(serverPosX, serverPosY, -2.0f));
@@ -611,6 +637,10 @@ int main() {
 		client_smacker = glm::scale(client_smacker, glm::vec3(0.75f, 0.75f, 0.75f));
 		mvpCli = Projection * View * client_smacker;
 
+		if (detectHit(glm::vec2(serverPosX, serverPosY), glm::vec2(0.75f, 0.75f),
+			glm::vec2(puckX, puckY), glm::vec2(0.65f, 0.65f))) {
+			std::cout << "Hit detected" << std::endl;
+		}
 		puck = glm::translate(puck, glm::vec3(puckX, puckY, -2.0f));
 		puck = glm::scale(puck, glm::vec3(0.5f, 0.5f, 0.5f));
 		mvpPuck = Projection * View * puck;
