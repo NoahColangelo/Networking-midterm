@@ -22,9 +22,7 @@
 GLFWwindow* window;
 
 unsigned char* hockeysmacker;
-unsigned char* puck;
 int width, height;
-int widthPuck, heightPuck;
 float UPDATE_INTERVAL = 0.1; //seconds
 
 void loadImage() {
@@ -35,25 +33,12 @@ void loadImage() {
 		&height,
 		&channels,
 		0);
-	puck = stbi_load("Puck.jpg",
-		&widthPuck,
-		&heightPuck,
-		&channelsPuck,
-		0);
 	if (hockeysmacker) {
 		std::cout << "Image LOADED" << width << " " << height << std::endl;
 	}
 	else {
 		std::cout << "Failed to load image!" << std::endl;
 	}
-
-	if (puck) {
-		std::cout << "Image LOADED" << widthPuck << " " << heightPuck << std::endl;
-	}
-	else {
-		std::cout << "Failed to load image!" << std::endl;
-	}
-
 }
 
 bool initGLFW() {
@@ -131,9 +116,6 @@ float clientPosY = -1.5f;
 float serverPosX = 0.0f;
 float serverPosY = 1.5f;
 
-float puckX = 0.0f;
-float puckY = 0.0f;
-
 float colliding = 1;
 GLuint filter_mode = GL_LINEAR;
 
@@ -176,16 +158,6 @@ void keyboard() {
 
 
 
-}
-
-bool detectHit(glm::vec2 Box1center, glm::vec2 Box1widthHeight, glm::vec2 Box2center, glm::vec2 Box2widthHeight)
-{
-	if (Box1center.x < Box2center.x + Box2widthHeight.x && Box1center.x + Box1widthHeight.x > Box2center.x &&
-		Box1center.y < Box2center.y + Box2widthHeight.y && Box1center.y + Box1widthHeight.y > Box2center.y)
-	{
-		return true;
-	}
-	return false;
 }
 
 
@@ -432,23 +404,6 @@ int main() {
 	glBindTexture(GL_TEXTURE_2D, GL_NONE);
 	stbi_image_free(hockeysmacker);
 
-	//------------------------------------FOr the puck
-	glGenTextures(1, &textureHandlePuck);
-
-	// "Bind" the newly created texture : all future texture functions will modify this texture
-	glBindTexture(GL_TEXTURE_2D, textureHandlePuck);
-
-	// Give the image to OpenGL
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, widthPuck, heightPuck, 0, GL_RGB, GL_UNSIGNED_BYTE, puck);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-	// Release the space used for your image once you're done
-	glBindTexture(GL_TEXTURE_2D, GL_NONE);
-	stbi_image_free(puck);
-	//-----------------------------------------
-
 	// Load your shaders
 	if (!loadShaders())
 		return 1;
@@ -470,12 +425,10 @@ int main() {
 	// Model matrix : an identity matrix (model will be at the origin)
 	glm::mat4 client_smacker = glm::mat4(1.0f);
 	glm::mat4 server_smacker = glm::mat4(1.0f);
-	glm::mat4 puck = glm::mat4(1.0f);
 
 	// Our ModelViewProjection : multiplication of our 3 matrices
 	glm::mat4 mvpCli = Projection * View * client_smacker; // Remember, matrix multiplication is the other way around
 	glm::mat4 mvpSer = Projection * View * server_smacker; // Remember, matrix multiplication is the other way around
-	glm::mat4 mvpPuck = Projection * View * puck; // Remember, matrix multiplication is the other way around
 
 	// Get a handle for our "MVP" uniform
 	// Only during initialisation
@@ -561,22 +514,6 @@ int main() {
 
 			sError = WSAGetLastError();
 
-			if (sError != WSAEWOULDBLOCK && bytes_received > 0)
-			{
-				//std::cout << "Received: " << buf << std::endl;
-
-				std::string temp = buf;
-				std::size_t pos = temp.find('@');
-				temp = temp.substr(0, pos - 1);
-				puckX = std::stof(temp);
-				temp = buf;
-				temp = temp.substr(pos + 1);
-				puckY = std::stof(temp);
-
-				//std::cout << "puckPos: " << puckX << " " << puckY << std::endl;
-			}
-
-
 			time = UPDATE_INTERVAL; // reset the timer
 		}
 
@@ -587,19 +524,6 @@ int main() {
 
 		client_smacker = glm::mat4(1.0f);
 		server_smacker = glm::mat4(1.0f);
-		puck = glm::mat4(1.0f);
-
-		
-
-		if (detectHit(glm::vec2(serverPosX, serverPosY), glm::vec2(0.75f, 0.75f),
-			glm::vec2(clientPosX, clientPosY), glm::vec2(0.75f, 0.75f))) {
-			std::cout << "Hit detected" << std::endl;
-			colliding = -1;
-		}
-		else
-		{
-			colliding = 1;
-		}
 
 		keyboard();
 
@@ -611,13 +535,6 @@ int main() {
 		server_smacker = glm::scale(server_smacker, glm::vec3(0.75f, 0.75f, 0.75f));
 		mvpSer = Projection * View * server_smacker;
 
-		if (detectHit(glm::vec2(serverPosX, serverPosY), glm::vec2(0.75f, 0.75f),
-			glm::vec2(puckX, puckY), glm::vec2(0.65f, 0.65f))) {
-			std::cout << "Hit detected" << std::endl;
-		}
-		puck = glm::translate(puck, glm::vec3(puckX, puckY, -2.0f));
-		puck = glm::scale(puck, glm::vec3(0.5f, 0.5f, 0.5f));
-		mvpPuck = Projection * View * puck;
 
 		glBindVertexArray(vao);
 
@@ -632,13 +549,6 @@ int main() {
 			GL_FALSE, &mvpCli[0][0]);
 
 		glBindTexture(GL_TEXTURE_2D, textureHandle);
-
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-
-		glUniformMatrix4fv(MatrixID, 1,
-			GL_FALSE, &mvpPuck[0][0]);
-
-		glBindTexture(GL_TEXTURE_2D, textureHandlePuck);
 
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 

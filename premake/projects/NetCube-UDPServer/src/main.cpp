@@ -23,10 +23,8 @@ GLFWwindow* window;
 
 unsigned char* image;
 int width, height;
-int widthPuck, heightPuck;
 
 unsigned char* hockeysmacker;
-unsigned char* puck;
 
 float UPDATE_INTERVAL = 0.100; //seconds
 
@@ -38,19 +36,9 @@ void loadImage() {
 		&height,
 		&channels,
 		0);
-	puck = stbi_load("Puck.jpg",
-		&widthPuck,
-		&heightPuck,
-		&channelsPuck,
-		0);
+
 	if (hockeysmacker) {
 		std::cout << "Image LOADED" << width << " " << height << std::endl;
-	}
-	else {
-		std::cout << "Failed to load image!" << std::endl;
-	}
-	if (puck) {
-		std::cout << "Image LOADED" << widthPuck << " " << heightPuck << std::endl;
 	}
 	else {
 		std::cout << "Failed to load image!" << std::endl;
@@ -133,9 +121,6 @@ float clientPosY = -1.5f;
 float serverPosX = 0.0f;
 float serverPosY = 1.5f;
 
-float puckX = 0.0f;
-float puckY = 0.0f;
-
 int colliding = 1;
 GLuint filter_mode = GL_LINEAR;
 
@@ -188,18 +173,6 @@ void keyboard(){
 
 
 }
-
-bool detectHit(glm::vec2 Box1center, glm::vec2 Box1widthHeight, glm::vec2 Box2center, glm::vec2 Box2widthHeight)
-{
-	if (Box1center.x < Box2center.x + Box2widthHeight.x && Box1center.x + Box1widthHeight.x > Box2center.x &&
-		Box1center.y < Box2center.y + Box2widthHeight.y && Box1center.y + Box1widthHeight.y > Box2center.y)
-	{
-		return true;
-	}
-	return false;
-}
-
-
 // Networking
 SOCKET server_socket;
 struct addrinfo* ptr = NULL;
@@ -454,24 +427,6 @@ int main() {
 	glBindTexture(GL_TEXTURE_2D, GL_NONE);
 	stbi_image_free(hockeysmacker);
 
-
-	//------------------------------------FOr the puck
-	glGenTextures(1, &textureHandlePuck);
-
-	// "Bind" the newly created texture : all future texture functions will modify this texture
-	glBindTexture(GL_TEXTURE_2D, textureHandlePuck);
-
-	// Give the image to OpenGL
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, widthPuck, heightPuck, 0, GL_RGB, GL_UNSIGNED_BYTE, puck);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-	// Release the space used for your image once you're done
-	glBindTexture(GL_TEXTURE_2D, GL_NONE);
-	stbi_image_free(puck);
-	//-----------------------------------------
-
 	// Load your shaders
 	if (!loadShaders())
 		return 1;
@@ -493,12 +448,10 @@ int main() {
 	// Model matrix : an identity matrix (model will be at the origin)
 	glm::mat4 client_smacker = glm::mat4(1.0f);
 	glm::mat4 server_smacker = glm::mat4(1.0f);
-	glm::mat4 puck = glm::mat4(1.0f);
 
 	// Our ModelViewProjection : multiplication of our 3 matrices
 	glm::mat4 mvpCli = Projection * View * client_smacker; // Remember, matrix multiplication is the other way around
 	glm::mat4 mvpSer = Projection * View * server_smacker; // Remember, matrix multiplication is the other way around
-	glm::mat4 mvpPuck = Projection * View * puck; // Remember, matrix multiplication is the other way around
 
 	// Get a handle for our "MVP" uniform
 	// Only during initialisation
@@ -585,24 +538,6 @@ int main() {
 			std::cout << "my pos: " << message << std::endl;
 			memset(message, '/0', BUFLEN);
 
-			////////////////////
-
-			//Sends puck position to client
-			char puckMessage[BUFLEN];
-
-			std::string pMsg = std::to_string(puckX) + "@" + std::to_string(puckY);
-
-			strcpy(puckMessage, (char*)pMsg.c_str());
-			//sends messages
-			if (sendto(server_socket, puckMessage, BUFLEN, 0, (struct sockaddr*) & fromAdder, fromLen) == SOCKET_ERROR)
-			{
-				std::cout << "puck pos send failed...\n" << std::endl;
-			}
-			else
-			std::cout << "puck pos: " << puckMessage << std::endl;
-			memset(puckMessage, '/0', BUFLEN);
-			//-------------------------------
-
 			time = UPDATE_INTERVAL; // reset the timer
 		}
 
@@ -615,17 +550,6 @@ int main() {
 
 		server_smacker = glm::mat4(1.0f);
 		client_smacker = glm::mat4(1.0f);
-		puck = glm::mat4(1.0f);
-
-		if (detectHit(glm::vec2(serverPosX, serverPosY), glm::vec2(0.75f, 0.75f),
-			glm::vec2(clientPosX, clientPosY), glm::vec2(0.75f, 0.75f))) {
-			std::cout << "Hit detected" << std::endl;
-			colliding = -1;
-		}
-		else
-		{
-			colliding = 1;
-		}
 
 		keyboard();
 
@@ -636,14 +560,6 @@ int main() {
 		client_smacker = glm::translate(client_smacker, glm::vec3(clientPosX, clientPosY, -2.0f));
 		client_smacker = glm::scale(client_smacker, glm::vec3(0.75f, 0.75f, 0.75f));
 		mvpCli = Projection * View * client_smacker;
-
-		if (detectHit(glm::vec2(serverPosX, serverPosY), glm::vec2(0.75f, 0.75f),
-			glm::vec2(puckX, puckY), glm::vec2(0.65f, 0.65f))) {
-			std::cout << "Hit detected" << std::endl;
-		}
-		puck = glm::translate(puck, glm::vec3(puckX, puckY, -2.0f));
-		puck = glm::scale(puck, glm::vec3(0.5f, 0.5f, 0.5f));
-		mvpPuck = Projection * View * puck;
 
 		glBindVertexArray(vao);
 
@@ -658,13 +574,6 @@ int main() {
 			GL_FALSE, &mvpCli[0][0]);
 
 		glBindTexture(GL_TEXTURE_2D, textureHandle);
-
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-
-		glUniformMatrix4fv(MatrixID, 1,
-			GL_FALSE, &mvpPuck[0][0]);
-
-		glBindTexture(GL_TEXTURE_2D, textureHandlePuck);
 
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
