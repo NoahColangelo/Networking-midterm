@@ -20,6 +20,8 @@
 ///////////////////////
 
 using std::vector;
+using std::cout;
+using std::endl;
 
 GLFWwindow* window;
 
@@ -114,10 +116,11 @@ bool loadShaders() {
 struct client
 {
 	client() {}
-	client(int8_t _id, float currX, float currY)
+	client(int8_t _id, float currX, float currY, float velX, float velY)
 	{
 		id = _id;
 		currentPos = glm::vec2(currX, currY);
+		velocity = glm::vec2(velX, velY);
 	}
 	int8_t id = 0;
 	glm::vec2 currentPos = glm::vec2(0, 0);
@@ -125,12 +128,21 @@ struct client
 	glm::vec2 velocity = glm::vec2(0, 0);
 
 	glm::vec2 lastSentPos = glm::vec2(0, 0);
+	glm::vec2 lastSentVel = glm::vec2(0, 0);
+	float lastSentTime = 0.0f;
 	glm::vec2 futurePos = glm::vec2(0,0);
 
 	glm::mat4 clientMat4 = glm::mat4(1.0f);
 	glm::mat4 MVP;
 
 };
+
+float dotProduct(glm::vec2 a)
+{
+	float temp;
+	temp = (a.x * a.x) + (a.y * a.y);
+	return temp;
+}
 
 vector <client> clients;
 
@@ -140,26 +152,26 @@ GLuint filter_mode = GL_LINEAR;
 
 void keyboard() {
 	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-		myClient.currentPos.y += 0.001;
+		myClient.currentPos.y += 0.01;
 	}
 	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-		myClient.currentPos.y -= 0.001;
+		myClient.currentPos.y -= 0.01;
 	}
 	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-		myClient.currentPos.x += 0.001;
+		myClient.currentPos.x += 0.01;
 	}
 	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-		myClient.currentPos.x -= 0.001;
+		myClient.currentPos.x -= 0.01;
 	}
 
 	//Buttons to increase and decrease interval lag ( lowest it goes is 0.100 but due to how floats work it goes down to 0.9)
 	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
 		UPDATE_INTERVAL += 0.01;
-		std::cout<< UPDATE_INTERVAL << std::endl;
+		std::cout<< "lag increased to: " << UPDATE_INTERVAL << std::endl;
 	}
 	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS && UPDATE_INTERVAL > 0.1f) {
 		UPDATE_INTERVAL -= 0.01;
-		std::cout << UPDATE_INTERVAL <<std::endl;
+		std::cout << "lag decreased to: " << UPDATE_INTERVAL <<std::endl;
 	}
 
 	if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
@@ -471,7 +483,7 @@ int main() {
 	float previous = glfwGetTime();
 
 	bool thresholdBroken = false;
-	float threshold = 1.5f;
+	float threshold = 0.1;
 	
 	///// Game loop /////
 	while (!glfwWindowShouldClose(window)) {
@@ -481,16 +493,25 @@ int main() {
 		float now = glfwGetTime();
 		float delta = now - previous;
 		previous = now;
-
-		// When timer goes off, send an update
 		
 		receiveTime -= delta;
 
-		myClient.futurePos = myClient.currentPos + myClient.velocity * delta;
+		//Dead reckoning for players box
+		myClient.futurePos = myClient.lastSentPos + myClient.velocity * (now - myClient.lastSentTime);
 
-		if (glm::dot(myClient.futurePos, myClient.lastSentPos) > threshold * threshold)
+		//Dead reckoning for other clients
+		for (int i = 0; i < clients.size(); i++)
 		{
+			clients[i].currentPos = clients[i].lastSentPos + clients[i].lastSentVel * (now - clients[i].lastSentTime);
+		}
+
+		//checks if the threshold for sending a packet has been breeched
+		if (dotProduct(myClient.currentPos - myClient.futurePos) > (threshold * threshold))
+		{
+			cout << "breach" << endl;
 			myClient.lastSentPos = myClient.currentPos;
+			myClient.lastSentVel = myClient.velocity;
+			myClient.lastSentTime = now;
 			thresholdBroken = true;
 		}
 
@@ -503,13 +524,14 @@ int main() {
 			char message[BUFLEN];
 
 			std::string msg = std::to_string(myClient.id) + "$" +
-				std::to_string(myClient.currentPos.x) + "@" + std::to_string(myClient.currentPos.y); //the message that will be sent
+				std::to_string(myClient.currentPos.x) + "@" + std::to_string(myClient.currentPos.y)
+				+ "%" + std::to_string(myClient.velocity.x) + "#" + std::to_string(myClient.velocity.y); //the message that will be sent
 
 			strcpy(message, (char*)msg.c_str());
 			//sends messages
 			if (sendto(client_socket, message, BUFLEN, 0, ptr->ai_addr, ptr->ai_addrlen) == SOCKET_ERROR)
 			{
-				std::cout << "Sendto() failed...\n" << std::endl;
+				cout << "Sendto() failed...\n" << endl;
 			}
 
 			memset(message, '/0', BUFLEN);
@@ -531,15 +553,16 @@ int main() {
 			int sError = -1;
 
 			bytes_received = recvfrom(client_socket, buf, BUFLEN, 0, (struct sockaddr*) & fromAdder, &fromLen);
-			
 			sError = WSAGetLastError();
 
 			float id;
 			float posX;
 			float posY;
-			if (sError != WSAEWOULDBLOCK && bytes_received > 0)
+			float velX;
+			float velY;
+			if (sError != WSAEWOULDBLOCK && bytes_received > 0 && myClient.id != 0)
 			{
-				//std::cout << "Received: " << buf << std::endl;
+				cout << "Received: " << buf <<endl;
 
 				std::string temp = buf;// becomes buf
 
@@ -547,15 +570,21 @@ int main() {
 				id = std::stof(temp.substr(0, idPos - 1));//gets ID
 
 				std::size_t Xpos = temp.find('@');// finds the position of the @
-				posX = std::stof(temp = temp.substr(0, Xpos - 1));// gets X
+				posX = std::stof(temp = temp.substr(0, Xpos - 1));// gets posX
+
+				std::size_t Ypos = temp.find('%');// finds the position of the %
+				posY = std::stof(temp = temp.substr(0, Ypos - 1));// gets posY
+
+				std::size_t Xvel = temp.find('#');// finds the position of the #
+				velX = std::stof(temp = temp.substr(0, Xvel - 1));// gets velX
 
 				temp = buf;
-				temp = temp.substr(Xpos + 1);
-				posY = std::stof(temp);//gets Y
+				temp = temp.substr(Xvel + 1);
+				velY = std::stof(temp);//gets velY
 
 				if (clients.size() == 0)//for when the first client shows up
 				{
-					clients.emplace_back(id, posX, posY);
+					clients.emplace_back(id, posX, posY, velX, velY);
 				}
 				else
 				{
@@ -563,13 +592,25 @@ int main() {
 					{
 						if (clients[i].id != id)
 						{
-							clients.emplace_back(id, posX, posY);
+							clients.emplace_back(id, posX, posY, velX, velY);
 							break;
 						}
 						else if (clients[i].id == id)
+						{
+							clients[i].lastSentPos = clients[i].currentPos;
+							clients[i].lastSentVel = clients[i].velocity;
+							clients[i].lastSentTime = now;
+
+							clients[i].currentPos = glm::vec2(posX, posY);
+							clients[i].velocity = glm::vec2(velX, velY);
 							break;
+						}
 					}
 				}
+			}
+			else if (myClient.id == 0)
+			{
+				myClient.id = buf[0];
 			}
 
 			receiveTime = UPDATE_INTERVAL;
@@ -581,6 +622,11 @@ int main() {
 		glUseProgram(shader_program);
 
 		myClient.clientMat4 = glm::mat4(1.0f);
+
+		for (int i = 0; i < clients.size(); i++)
+		{
+			clients[i].clientMat4 = glm::mat4(1.0f);
+		}
 
 		myClient.lastPos = myClient.currentPos;
 

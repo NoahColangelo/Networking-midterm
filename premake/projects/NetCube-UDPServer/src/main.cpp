@@ -72,11 +72,11 @@ void keyboard(){
 	//Buttons to increase and decrease interval lag ( lowest it goes is 0.100 but due to how floats work it goes down to 0.9)
 	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
 		UPDATE_INTERVAL += 0.01;
-		std::cout << UPDATE_INTERVAL << std::endl;
+		std::cout << "lag increased to: " << UPDATE_INTERVAL << std::endl;
 	}
 	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS && UPDATE_INTERVAL > 0.1f) {
 		UPDATE_INTERVAL -= 0.01;
-		std::cout << UPDATE_INTERVAL << std::endl;
+		std::cout << "lag decreased to: " << UPDATE_INTERVAL << std::endl;
 	}
 
 	if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
@@ -216,7 +216,7 @@ int main() {
 			if (sError != WSAEWOULDBLOCK && bytes_received > 0)
 			{
 
-				if (buf[0] == 0 && clientID < serverSize)//checks for new clients
+				if (buf[0] == '0' && _clients.size() < serverSize)//checks for new clients
 				{
 					char message[BUFLEN];
 					std::string msg = std::to_string(clientID);
@@ -232,7 +232,7 @@ int main() {
 					cout << "received " << buf << " from client " << buf[0] << endl;
 				}
 
-				if (buf[0] != 0)//checks to make sure it doesnt send message from new client to other clients
+				if (buf[0] != '0')//checks to make sure it doesnt send message from new client to other clients
 				{
 					for (int i = 0; i < _clients.size(); i++)
 					{
@@ -246,15 +246,10 @@ int main() {
 							}
 							else
 							{
-								cout << "sent: " << buf << " to " << _clients[i]._id;
+								cout << "sent: " << buf << " to " << _clients[i]._id<<endl;
 							}
 						}
 					}
-				}
-				else if (clientID == serverSize)
-				{
-					char message[BUFLEN] = "Server Full, Go away";
-					sendto(server_socket, message, BUFLEN, 0, (struct sockaddr*) & fromAdder, fromLen);
 				}
 			}
 
