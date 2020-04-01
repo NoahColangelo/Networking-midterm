@@ -63,6 +63,14 @@ struct Client
 	int _udpSockAddrLen;
 };
 
+struct Packet
+{
+	Packet() {}
+	int8_t _id;
+	glm::vec2 pos;
+	glm::vec2 vel;
+};
+
 vector <Client> _clients;
 
 GLuint filter_mode = GL_LINEAR;
@@ -215,12 +223,13 @@ int main() {
 
 			if (sError != WSAEWOULDBLOCK && bytes_received > 0)
 			{
-
-				if (buf[0] == '0' && _clients.size() < serverSize)//checks for new clients
+				int8_t tempId= buf[0];
+				if (static_cast<int8_t>(buf[0]) == 0 && _clients.size() < serverSize)//checks for new clients
 				{
 					char message[BUFLEN];
-					std::string msg = std::to_string(clientID);
-					strcpy(message, (char*)msg.c_str());
+					memset(message, 0, BUFLEN);
+					
+					memcpy(message, &clientID, sizeof(clientID));
 
 					sendto(server_socket, message, BUFLEN, 0, (struct sockaddr*) & fromAdder, fromLen);
 					_clients.emplace_back(clientID, fromAdder, fromlen);
@@ -229,14 +238,18 @@ int main() {
 				}
 				else
 				{
-					cout << "received " << buf << " from client " << buf[0] << endl;
+					char message[BUFLEN];
+					memset(message, 0, BUFLEN);
+					memcpy(message, &clientID, sizeof(clientID));
+
+					cout << "received " << message << " from client " << buf[0] << endl;
 				}
 
-				if (buf[0] != '0')//checks to make sure it doesnt send message from new client to other clients
+				if (static_cast<int8_t>(buf[0]) != 0)//checks to make sure it doesnt send message from new client to other clients
 				{
 					for (int i = 0; i < _clients.size(); i++)
 					{
-						if (buf[0] != _clients[i]._id)
+						if (static_cast<int8_t>(buf[0]) != _clients[i]._id)
 						{
 							if (sendto(server_socket, buf, BUFLEN, 0, (struct sockaddr*) & _clients[i]._udpSockAddr, _clients[i]._udpSockAddrLen)
 								== SOCKET_ERROR)
@@ -246,7 +259,7 @@ int main() {
 							}
 							else
 							{
-								cout << "sent: " << buf << " to " << _clients[i]._id<<endl;
+								cout << "sent: " << std::string(buf) << " to " << _clients[i]._id<<endl;
 							}
 						}
 					}

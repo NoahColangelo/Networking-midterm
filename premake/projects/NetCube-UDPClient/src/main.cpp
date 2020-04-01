@@ -116,11 +116,11 @@ bool loadShaders() {
 struct client
 {
 	client() {}
-	client(int8_t _id, float currX, float currY, float velX, float velY)
+	client(int8_t _id, glm::vec2 pos, glm::vec2 vel)
 	{
 		id = _id;
-		currentPos = glm::vec2(currX, currY);
-		velocity = glm::vec2(velX, velY);
+		currentPos = pos;
+		velocity = vel;
 	}
 	int8_t id = 0;
 	glm::vec2 currentPos = glm::vec2(0, 0);
@@ -135,6 +135,20 @@ struct client
 	glm::mat4 clientMat4 = glm::mat4(1.0f);
 	glm::mat4 MVP;
 
+};
+
+struct packet
+{
+	packet() {}
+	packet(int8_t _id, glm::vec2 _currPos, glm::vec2 _currVel)
+	{
+		id = _id;
+		currentPos = _currPos;
+		velocity = _currVel;
+	}
+	int8_t id;
+	glm::vec2 currentPos;
+	glm::vec2 velocity;
 };
 
 float dotProduct(glm::vec2 a)
@@ -483,7 +497,7 @@ int main() {
 	float previous = glfwGetTime();
 
 	bool thresholdBroken = false;
-	float threshold = 0.1;
+	float threshold = 0.05;
 	
 	///// Game loop /////
 	while (!glfwWindowShouldClose(window)) {
@@ -522,12 +536,15 @@ int main() {
 		{
 			// Code to send position updates go HERE...
 			char message[BUFLEN];
+			memset(message, 0, BUFLEN);
 
-			std::string msg = std::to_string(myClient.id) + "$" +
-				std::to_string(myClient.currentPos.x) + "@" + std::to_string(myClient.currentPos.y)
-				+ "%" + std::to_string(myClient.velocity.x) + "#" + std::to_string(myClient.velocity.y); //the message that will be sent
+			packet _packet = packet(myClient.id, myClient.currentPos, myClient.velocity);
+			memcpy(message, &_packet, sizeof(_packet));
+			///*std::string msg = std::to_string(myClient.id) + "$" +
+			//	std::to_string(myClient.currentPos.x) + "@" + std::to_string(myClient.currentPos.y)
+			//*/	+ "%" + std::to_string(myClient.velocity.x) + "#" + std::to_string(myClient.velocity.y); //the message that will be sent
 
-			strcpy(message, (char*)msg.c_str());
+			//strcpy(message, (char*)msg.c_str());
 			//sends messages
 			if (sendto(client_socket, message, BUFLEN, 0, ptr->ai_addr, ptr->ai_addrlen) == SOCKET_ERROR)
 			{
@@ -555,54 +572,57 @@ int main() {
 			bytes_received = recvfrom(client_socket, buf, BUFLEN, 0, (struct sockaddr*) & fromAdder, &fromLen);
 			sError = WSAGetLastError();
 
-			float id;
-			float posX;
-			float posY;
-			float velX;
-			float velY;
+			//float id;
+			//float posX;
+			//float posY;
+			//float velX;
+			//float velY;
 			if (sError != WSAEWOULDBLOCK && bytes_received > 0 && myClient.id != 0)
 			{
 				cout << "Received: " << buf <<endl;
 
-				std::string temp = buf;// becomes buf
+				packet _packet = packet();
+				memcpy(&_packet, buf, sizeof(_packet));
 
-				std::size_t idPos = temp.find('$'); // finds position of $
-				id = std::stof(temp.substr(0, idPos - 1));//gets ID
+				//std::string temp = buf;// becomes buf
 
-				std::size_t Xpos = temp.find('@');// finds the position of the @
-				posX = std::stof(temp = temp.substr(0, Xpos - 1));// gets posX
+				//std::size_t idPos = temp.find('$'); // finds position of $
+				//id = std::stof(temp.substr(0, idPos - 1));//gets ID
 
-				std::size_t Ypos = temp.find('%');// finds the position of the %
-				posY = std::stof(temp = temp.substr(0, Ypos - 1));// gets posY
+				//std::size_t Xpos = temp.find('@');// finds the position of the @
+				//posX = std::stof(temp = temp.substr(0, Xpos - 1));// gets posX
 
-				std::size_t Xvel = temp.find('#');// finds the position of the #
-				velX = std::stof(temp = temp.substr(0, Xvel - 1));// gets velX
+				//std::size_t Ypos = temp.find('%');// finds the position of the %
+				//posY = std::stof(temp = temp.substr(0, Ypos - 1));// gets posY
 
-				temp = buf;
-				temp = temp.substr(Xvel + 1);
-				velY = std::stof(temp);//gets velY
+				//std::size_t Xvel = temp.find('#');// finds the position of the #
+				//velX = std::stof(temp = temp.substr(0, Xvel - 1));// gets velX
+
+				//temp = buf;
+				//temp = temp.substr(Xvel + 1);
+				//velY = std::stof(temp);//gets velY
 
 				if (clients.size() == 0)//for when the first client shows up
 				{
-					clients.emplace_back(id, posX, posY, velX, velY);
+					clients.emplace_back(_packet.id, _packet.currentPos, _packet.velocity);
 				}
 				else
 				{
 					for (int i = 0; i < clients.size(); i++)//when there is more then 1 client in server
 					{
-						if (clients[i].id != id)
+						if (clients[i].id != _packet.id)
 						{
-							clients.emplace_back(id, posX, posY, velX, velY);
+							clients.emplace_back(_packet.id, _packet.currentPos, _packet.velocity);
 							break;
 						}
-						else if (clients[i].id == id)
+						else if (clients[i].id == _packet.id)//the correction packet is sent here
 						{
 							clients[i].lastSentPos = clients[i].currentPos;
 							clients[i].lastSentVel = clients[i].velocity;
 							clients[i].lastSentTime = now;
 
-							clients[i].currentPos = glm::vec2(posX, posY);
-							clients[i].velocity = glm::vec2(velX, velY);
+							clients[i].currentPos = _packet.currentPos;
+							clients[i].velocity = _packet.velocity;
 							break;
 						}
 					}
@@ -611,6 +631,7 @@ int main() {
 			else if (myClient.id == 0)
 			{
 				myClient.id = buf[0];
+				cout << static_cast<int>(myClient.id) << endl;
 			}
 
 			receiveTime = UPDATE_INTERVAL;
