@@ -5,7 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-
+#include <vector>
 #include <GLM/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -18,6 +18,8 @@
 #include <stdio.h>
 #pragma comment(lib, "Ws2_32.lib")
 ///////////////////////
+
+using std::vector;
 
 GLFWwindow* window;
 
@@ -109,28 +111,45 @@ bool loadShaders() {
 	return true;
 }
 
-//INPUT handling
-float clientPosX = 0.0f;
-float clientPosY = -1.5f;
+struct client
+{
+	client() {}
+	client(int8_t _id, float currX, float currY)
+	{
+		id = _id;
+		currentPos = glm::vec2(currX, currY);
+	}
+	int8_t id = 0;
+	glm::vec2 currentPos = glm::vec2(0, 0);
+	glm::vec2 lastPos = glm::vec2(0,0);
+	glm::vec2 velocity = glm::vec2(0, 0);
 
-float serverPosX = 0.0f;
-float serverPosY = 1.5f;
+	glm::vec2 lastSentPos = glm::vec2(0, 0);
+	glm::vec2 futurePos = glm::vec2(0,0);
 
-float colliding = 1;
+	glm::mat4 clientMat4 = glm::mat4(1.0f);
+	glm::mat4 MVP;
+
+};
+
+vector <client> clients;
+
+client myClient;
+
 GLuint filter_mode = GL_LINEAR;
 
 void keyboard() {
 	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-		clientPosY += 0.001 * colliding;
+		myClient.currentPos.y += 0.001;
 	}
 	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-		clientPosY -= 0.001 * colliding;
+		myClient.currentPos.y -= 0.001;
 	}
 	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-		clientPosX += 0.001 * colliding;
+		myClient.currentPos.x += 0.001;
 	}
 	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-		clientPosX -= 0.001 * colliding;
+		myClient.currentPos.x -= 0.001;
 	}
 
 	//Buttons to increase and decrease interval lag ( lowest it goes is 0.100 but due to how floats work it goes down to 0.9)
@@ -209,6 +228,9 @@ bool initNetwork() {
 		WSACleanup();
 		return 0;
 	}
+
+	u_long mode = 1;// 0 for blocking mode
+	ioctlsocket(client_socket, FIONBIO, &mode);
 
 	return 1;
 }
@@ -347,7 +369,7 @@ int main() {
 		0.0f, 1.0f
 	};
 
-
+#pragma region openGL_Stuff
 	//VBO
 	GLuint pos_vbo = 0;
 	glGenBuffers(1, &pos_vbo);
@@ -360,15 +382,15 @@ int main() {
 	glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STATIC_DRAW);
 
 
-	
+
 	// VAO
 	GLuint vao = 0;
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 	glBindBuffer(GL_ARRAY_BUFFER, pos_vbo);
-	
+
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-		
+
 	glBindBuffer(GL_ARRAY_BUFFER, color_vbo);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
@@ -386,14 +408,14 @@ int main() {
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, NULL);
 
 	loadImage();
-	
+
 	GLuint textureHandle, textureHandlePuck;
-	
+
 	glGenTextures(1, &textureHandle);
-	
+
 	// "Bind" the newly created texture : all future texture functions will modify this texture
 	glBindTexture(GL_TEXTURE_2D, textureHandle);
-	
+
 	// Give the image to OpenGL
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, hockeysmacker);
 
@@ -411,9 +433,9 @@ int main() {
 	// Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
 	int width, height;
 	glfwGetWindowSize(window, &width, &height);
-	glm::mat4 Projection = 
-		glm::perspective(glm::radians(45.0f), 
-		(float)width / (float)height, 0.0001f, 100.0f);
+	glm::mat4 Projection =
+		glm::perspective(glm::radians(45.0f),
+			(float)width / (float)height, 0.0001f, 100.0f);
 
 	// Camera matrix
 	glm::mat4 View = glm::lookAt(
@@ -423,16 +445,13 @@ int main() {
 	);
 
 	// Model matrix : an identity matrix (model will be at the origin)
-	glm::mat4 client_smacker = glm::mat4(1.0f);
-	glm::mat4 server_smacker = glm::mat4(1.0f);
 
 	// Our ModelViewProjection : multiplication of our 3 matrices
-	glm::mat4 mvpCli = Projection * View * client_smacker; // Remember, matrix multiplication is the other way around
-	glm::mat4 mvpSer = Projection * View * server_smacker; // Remember, matrix multiplication is the other way around
+	myClient.MVP = Projection * View * myClient.clientMat4; // Remember, matrix multiplication is the other way around
 
 	// Get a handle for our "MVP" uniform
 	// Only during initialisation
-	GLuint MatrixID = 
+	GLuint MatrixID =
 		glGetUniformLocation(shader_program, "MVP");
 
 
@@ -444,11 +463,15 @@ int main() {
 
 	/////// TEXTURE
 	glUniform1i(glGetUniformLocation(shader_program, "myTextureSampler"), 0);
+#pragma endregion
 
-	
 	// Timer variables for sending network updates
-	float time = 0.0;
+	float sendTime = 0.0;
+	float receiveTime = 0.0;
 	float previous = glfwGetTime();
+
+	bool thresholdBroken = false;
+	float threshold = 1.5f;
 	
 	///// Game loop /////
 	while (!glfwWindowShouldClose(window)) {
@@ -460,13 +483,27 @@ int main() {
 		previous = now;
 
 		// When timer goes off, send an update
-		time -= delta;
-		if (time <= 0.f)
+		
+		receiveTime -= delta;
+
+		myClient.futurePos = myClient.currentPos + myClient.velocity * delta;
+
+		if (glm::dot(myClient.futurePos, myClient.lastSentPos) > threshold * threshold)
+		{
+			myClient.lastSentPos = myClient.currentPos;
+			thresholdBroken = true;
+		}
+
+		if(thresholdBroken)
+			sendTime -= delta;
+
+		if (sendTime <= 0.f )
 		{
 			// Code to send position updates go HERE...
 			char message[BUFLEN];
 
-			std::string msg = std::to_string(clientPosX) + "@" + std::to_string(clientPosY);
+			std::string msg = std::to_string(myClient.id) + "$" +
+				std::to_string(myClient.currentPos.x) + "@" + std::to_string(myClient.currentPos.y); //the message that will be sent
 
 			strcpy(message, (char*)msg.c_str());
 			//sends messages
@@ -474,12 +511,15 @@ int main() {
 			{
 				std::cout << "Sendto() failed...\n" << std::endl;
 			}
-			else
-			//std::cout << "my pos: " << message << std::endl;
+
 			memset(message, '/0', BUFLEN);
 
+			sendTime = UPDATE_INTERVAL; // reset the timer
+			thresholdBroken = false;
+		}
 
-		//-------------------------------receiving from server
+		if (receiveTime <= 0.0f)
+		{
 			char buf[BUFLEN];
 			struct sockaddr_in fromAdder;
 			int fromLen;
@@ -491,30 +531,48 @@ int main() {
 			int sError = -1;
 
 			bytes_received = recvfrom(client_socket, buf, BUFLEN, 0, (struct sockaddr*) & fromAdder, &fromLen);
-
+			
 			sError = WSAGetLastError();
 
+			float id;
+			float posX;
+			float posY;
 			if (sError != WSAEWOULDBLOCK && bytes_received > 0)
 			{
 				//std::cout << "Received: " << buf << std::endl;
 
-				std::string temp = buf;
-				std::size_t pos = temp.find('@');
-				temp = temp.substr(0, pos - 1);
-				serverPosX = std::stof(temp);
-				temp = buf;
-				temp = temp.substr(pos + 1);
-				serverPosY = std::stof(temp);
+				std::string temp = buf;// becomes buf
 
-				//std::cout << "server pos: " << serverPosX << " " << serverPosY << std::endl;
+				std::size_t idPos = temp.find('$'); // finds position of $
+				id = std::stof(temp.substr(0, idPos - 1));//gets ID
+
+				std::size_t Xpos = temp.find('@');// finds the position of the @
+				posX = std::stof(temp = temp.substr(0, Xpos - 1));// gets X
+
+				temp = buf;
+				temp = temp.substr(Xpos + 1);
+				posY = std::stof(temp);//gets Y
+
+				if (clients.size() == 0)//for when the first client shows up
+				{
+					clients.emplace_back(id, posX, posY);
+				}
+				else
+				{
+					for (int i = 0; i < clients.size(); i++)//when there is more then 1 client in server
+					{
+						if (clients[i].id != id)
+						{
+							clients.emplace_back(id, posX, posY);
+							break;
+						}
+						else if (clients[i].id == id)
+							break;
+					}
+				}
 			}
 
-			//receives puck position form server
-			bytes_received = recvfrom(client_socket, buf, BUFLEN, 0, (struct sockaddr*) & fromAdder, &fromLen);
-
-			sError = WSAGetLastError();
-
-			time = UPDATE_INTERVAL; // reset the timer
+			receiveTime = UPDATE_INTERVAL;
 		}
 
 		glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
@@ -522,31 +580,46 @@ int main() {
 
 		glUseProgram(shader_program);
 
-		client_smacker = glm::mat4(1.0f);
-		server_smacker = glm::mat4(1.0f);
+		myClient.clientMat4 = glm::mat4(1.0f);
+
+		myClient.lastPos = myClient.currentPos;
 
 		keyboard();
 
-		client_smacker = glm::translate(client_smacker, glm::vec3(clientPosX, clientPosY, -2.0f));
-		client_smacker = glm::scale(client_smacker, glm::vec3(0.75f, 0.75f, 0.75f));
-		mvpCli = Projection * View * client_smacker;
+		//calculations for the clients own object
+		myClient.velocity = (myClient.currentPos - myClient.lastPos)/ delta;
+		myClient.clientMat4 = glm::translate(myClient.clientMat4, glm::vec3(myClient.currentPos.x, myClient.currentPos.y, -2.0f));
+		myClient.clientMat4 = glm::scale(myClient.clientMat4, glm::vec3(0.75f, 0.75f, 0.75f));
+		myClient.MVP = Projection * View * myClient.clientMat4;
 
-		server_smacker = glm::translate(server_smacker, glm::vec3(serverPosX, serverPosY, -2.0f));
-		server_smacker = glm::scale(server_smacker, glm::vec3(0.75f, 0.75f, 0.75f));
-		mvpSer = Projection * View * server_smacker;
+		if (clients.size() != 0)//does calculations for other clients
+		{
+			for (int i = 0; i < clients.size(); i++)
+			{
+				clients[i].clientMat4 = glm::translate(clients[i].clientMat4, glm::vec3(clients[i].currentPos.x, clients[i].currentPos.y, -2.0f));
+				clients[i].clientMat4 = glm::scale(clients[i].clientMat4, glm::vec3(0.75f, 0.75f, 0.75f));
+				clients[i].MVP = Projection * View * clients[i].clientMat4;
+			}
+		}
 
 
 		glBindVertexArray(vao);
 
+		if (clients.size() != 0)
+		{
+			for (int i = 0; i < clients.size(); i++)
+			{
+				glUniformMatrix4fv(MatrixID, 1,
+					GL_FALSE, &clients[i].MVP[0][0]);
+
+				glBindTexture(GL_TEXTURE_2D, textureHandle);
+
+				glDrawArrays(GL_TRIANGLES, 0, 36);
+			}
+		}
+
 		glUniformMatrix4fv(MatrixID, 1,
-			GL_FALSE, &mvpSer[0][0]);
-
-		glBindTexture(GL_TEXTURE_2D, textureHandle);
-
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-
-		glUniformMatrix4fv(MatrixID, 1,
-			GL_FALSE, &mvpCli[0][0]);
+			GL_FALSE, &myClient.MVP[0][0]);
 
 		glBindTexture(GL_TEXTURE_2D, textureHandle);
 
